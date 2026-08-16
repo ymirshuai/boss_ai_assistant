@@ -38,7 +38,7 @@ pip install -r requirements.txt
 ### 2. 配置 API Key 与 config
 
 1. 复制配置模板：`cp config.example.py config.py`，按需填入 `device_id` / 坐标 / 私有 MaaS 网关。
-2. API Key 放 `Key.json`（参考 `Key.json.example`），或由 `load_key()` 首次运行时交互式输入；**切勿把真实 Key 提交到仓库**。
+2. API Key 放 `Key.json`（参考 `Key.json.example`），或由 `load_key()` 首次运行时交互式输入；**切勿把真实 Key 提交到仓库**。目前 `Key.json` 含 `DASHSCOPE_API_KEY`（模型网关）与 `BARK_KEY`（Bark 手机推送），二者均为敏感信息。
 
 ### 3. 获取坐标
 

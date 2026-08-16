@@ -86,6 +86,8 @@ def load_key():
             Key = json.load(file)
         if "DASHSCOPE_API_KEY" in Key:
             os.environ['DASHSCOPE_API_KEY'] = Key["DASHSCOPE_API_KEY"].strip()
+        if "BARK_KEY" in Key:
+            os.environ['BARK_KEY'] = Key["BARK_KEY"].strip()
     else:
         DASHSCOPE_API_KEY = getpass.getpass("未找到存放Key的文件，请输入你的api_key:").strip()
         Key = {
