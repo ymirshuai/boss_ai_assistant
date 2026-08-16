@@ -1,0 +1,2 @@
+# 占位文件：保证 assets/ 目录纳入版本控制
+# 真实文件（resume.pdf、wechat_qr.png 等私人素材）已被 .gitignore 忽略，不入库

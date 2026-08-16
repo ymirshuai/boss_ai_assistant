@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOSS 直聘 AI 助手</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f4f6f9; color: #1f2533;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+    background: #fff; border-bottom: 1px solid #e3e8ef;
+  }
+  header h1 { font-size: 18px; margin: 0; flex: 1; }
+  .badge { padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+  .badge.idle { background: #eef1f5; color: #6b7280; }
+  .badge.run { background: #e7f7ee; color: #1a9c5b; }
+  .badge.err { background: #fdeaea; color: #d23b3b; }
+  button {
+    border: none; border-radius: 8px; padding: 8px 14px; font-size: 14px;
+    cursor: pointer; font-weight: 600;
+  }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-primary { background: #2f7bff; color: #fff; }
+  .btn-ghost { background: #eef1f5; color: #333; }
+  .btn-danger { background: #f14646; color: #fff; }
+  .wrap { padding: 16px 20px; max-width: 1280px; margin: 0 auto; }
+  .card { background: #fff; border: 1px solid #e3e8ef; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; margin: 0 0 12px; }
+  .fields { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: #6b7280; }
+  .field input { padding: 8px 10px; border: 1px solid #d4dae3; border-radius: 8px; font-size: 14px; width: 200px; }
+  .row-btns { display: flex; gap: 10px; margin-left: auto; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  #screenshot { width: 100%; border-radius: 8px; border: 1px solid #e3e8ef; background: #fafbfc; min-height: 360px; object-fit: contain; }
+  #log { height: 420px; overflow-y: auto; background: #0f172a; color: #d6e2f0; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; padding: 10px; border-radius: 8px; line-height: 1.6; }
+  .log-line { white-space: pre-wrap; word-break: break-all; padding: 1px 0; }
+  .lv-INFO { color: #9fb3c8; }
+  .lv-SUCCESS { color: #6ee7a8; }
+  .lv-WARNING { color: #f6c453; }
+  .lv-ERROR { color: #ff8a8a; }
+  .stat { font-size: 13px; color: #475069; margin-top: 8px; }
+  /* Agent chat */
+  #chatLog { height: 180px; overflow-y: auto; border: 1px solid #e3e8ef; border-radius: 8px; padding: 10px; background: #fafbfc; font-size: 13px; }
+  .msg { margin: 6px 0; padding: 6px 10px; border-radius: 8px; max-width: 85%; }
+  .msg.me { background: #e7f0ff; margin-left: auto; text-align: right; }
+  .msg.bot { background: #fff; border: 1px solid #e3e8ef; }
+  .chat-input { display: flex; gap: 8px; margin-top: 8px; }
+  .chat-input input { flex: 1; padding: 8px 10px; border: 1px solid #d4dae3; border-radius: 8px; font-size: 14px; }
+  /* modal */
+  .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; }
+  .modal-mask.show { display: flex; }
+  .modal { background: #fff; border-radius: 12px; padding: 20px; width: 520px; max-width: 90vw; max-height: 80vh; overflow: auto; }
+  .modal h3 { margin: 0 0 12px; }
+  .modal pre { white-space: pre-wrap; word-break: break-all; background: #f7f9fc; padding: 12px; border-radius: 8px; font-size: 13px; line-height: 1.7; }
+</style>
+</head>
+<body>
+<header>
+  <h1>BOSS 直聘 AI 助手</h1>
+  <span id="statusBadge" class="badge idle">空闲</span>
+  <button id="stopBtn" class="btn-danger" disabled>停止</button>
+</header>
+
+<div class="wrap">
+  <!-- 设置 -->
+  <div class="card">
+    <h2>运行设置</h2>
+    <div class="fields">
+      <div class="field">
+        <label>岗位名称（搜索关键词）</label>
+        <input id="keyword" type="text" placeholder="如：AI应用开发" value="AI应用开发">
+      </div>
+      <div class="field">
+        <label>目标打招呼数（达到暂停）</label>
+        <input id="target" type="number" placeholder="60" value="60" min="1">
+      </div>
+      <div class="field">
+        <label>运行时长（秒，留空=不限）</label>
+        <input id="duration" type="number" placeholder="留空不限" min="1">
+      </div>
+      <div class="row-btns">
+        <button id="notesBtn" class="btn-ghost">注意事项</button>
+        <button id="startBtn" class="btn-primary">开始自动打招呼 / 回消息</button>
+      </div>
+    </div>
+    <div id="statLine" class="stat">今日已打招呼：— ｜ 当前岗位：— ｜ 会话：—</div>
+  </div>
+
+  <!-- 主区 -->
+  <div class="grid">
+    <div class="card">
+      <h2>实时截图</h2>
+      <img id="screenshot" src="/api/screenshot" alt="等待截图...">
+    </div>
+    <div class="card">
+      <h2>运行日志</h2>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <!-- Agent 对话（预留） -->
+  <div class="card">
+    <h2>与 Agent 对话（预留）</h2>
+    <div id="chatLog"></div>
+    <div class="chat-input">
+      <input id="chatInput" type="text" placeholder="（Agent 模块开发中）试着说点什么…">
+      <button id="chatSend" class="btn-primary">发送</button>
+    </div>
+  </div>
+</div>
+
+<!-- 注意事项弹窗 -->
+<div id="notesModal" class="modal-mask">
+  <div class="modal">
+    <h3>使用注意事项</h3>
+    <pre id="notesBody">加载中…</pre>
+    <div style="text-align:right;margin-top:12px;">
+      <button class="btn-primary" onclick="document.getElementById('notesModal').classList.remove('show')">知道了</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const logEl = $("log");
+
+function addLog(e) {
+  const line = document.createElement("div");
+  line.className = "log-line lv-" + (e.level || "INFO");
+  line.textContent = `[${e.ts || ""}] ${e.level || ""} ${e.msg || ""}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// SSE 实时日志
+const es = new EventSource("/api/logs/stream");
+es.onmessage = ev => {
+  try { addLog(JSON.parse(ev.data)); } catch (_) {}
+};
+es.onerror = () => {}; // 自动重连
+
+// 截图轮询
+function refreshScreenshot() {
+  $("screenshot").src = "/api/screenshot?t=" + Date.now();
+}
+setInterval(refreshScreenshot, 2000);
+refreshScreenshot();
+
+// 状态轮询
+async function refreshStatus() {
+  try {
+    const r = await fetch("/api/campaign/status");
+    const s = await r.json();
+    const badge = $("statusBadge");
+    badge.textContent = s.running ? "运行中" : "空闲";
+    badge.className = "badge " + (s.running ? "run" : "idle");
+    $("stopBtn").disabled = !s.running;
+    $("startBtn").disabled = s.running;
+    $("statLine").textContent =
+      `今日已打招呼：${s.today_greet_count} ｜ 当前岗位：${s.keyword || "—"} ｜ 目标：${s.target ?? "—"} ｜ 会话：${s.session_id || "—"}`;
+  } catch (_) {}
+}
+setInterval(refreshStatus, 2000);
+refreshStatus();
+
+// 开始
+$("startBtn").onclick = async () => {
+  const body = {
+    keyword: $("keyword").value.trim(),
+    target_greet_count: $("target").value ? Number($("target").value) : null,
+    duration: $("duration").value ? Number($("duration").value) : null,
+  };
+  const r = await fetch("/api/campaign/start", {
+    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)
+  });
+  const j = await r.json();
+  alert(j.msg || "已提交");
+  refreshStatus();
+};
+
+// 停止
+$("stopBtn").onclick = async () => {
+  await fetch("/api/campaign/stop", { method: "POST" });
+  refreshStatus();
+};
+
+// 注意事项
+$("notesBtn").onclick = async () => {
+  const r = await fetch("/api/notes");
+  $("notesBody").textContent = await r.text();
+  $("notesModal").classList.add("show");
+};
+
+// Agent 对话（预留）
+function addChat(who, text) {
+  const d = document.createElement("div");
+  d.className = "msg " + who;
+  d.textContent = text;
+  $("chatLog").appendChild(d);
+  $("chatLog").scrollTop = $("chatLog").scrollHeight;
+}
+$("chatSend").onclick = async () => {
+  const v = $("chatInput").value.trim();
+  if (!v) return;
+  addChat("me", v);
+  $("chatInput").value = "";
+  const r = await fetch("/api/agent/chat", {
+    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({message: v})
+  });
+  const j = await r.json();
+  addChat("bot", j.reply || "（无回复）");
+};
+</script>
+</body>
+</html>

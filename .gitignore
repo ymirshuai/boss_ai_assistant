@@ -1,0 +1,74 @@
+# ========== Python 通用 ==========
+__pycache__/
+*.py[cod]
+*.pyc
+*$py.class
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ========== 虚拟环境（3.0GB，绝不提交） ==========
+.venv/
+.venv.broken/
+venv/
+env/
+
+# ========== IDE / 编辑器 ==========
+.idea/
+.vscode/
+*.swp
+
+# ========== 测试 / 缓存 ==========
+.pytest_cache/
+.cache/
+.mypy_cache/
+.ruff_cache/
+
+# ========== 密钥 / 凭证（核心！绝不提交） ==========
+# Key.json 含真实 DASHSCOPE_API_KEY
+Key.json
+*.key
+.env
+.env.*
+*.secret
+
+# ========== 个人配置（含设备ID/坐标/私有网关URL，公开仓库必须脱敏） ==========
+# 真实配置；用 config.example.py 作模板，克隆后 cp config.example.py config.py
+config.py
+# 草稿测试，硬编码了真实 Key 与网关，勿提交
+test1.py
+
+# ========== 本地数据库 / 私人数据 ==========
+boss_ai_assistant.db
+*.db
+# 私人数据备份
+data_backup.json
+# 抓取的岗位数据（可重建）
+jobs_data.json
+# OCR 中间产物（含私人截图文本）
+ocr_blocks_dump.json
+
+# ========== 运行日志 ==========
+logs/
+*.log
+
+# ========== 截图（534 张 / 415MB 个人 BOSS 截图，绝不提交） ==========
+screenshots/
+# 注：local_ocr_engine.py 的 test*/ 测试样例也不入库，克隆后按需自行放置
+
+# ========== 私人素材（简历 PDF、微信二维码等） ==========
+assets/*
+!assets/.gitkeep
+
+# ========== WorkBuddy 内部状态（记忆 / 会话日志，不入库） ==========
+.workbuddy/
+
+# ========== 操作系统 ==========
+Thumbs.db
+ehthumbs.db
+.DS_Store
+
+# ========== 私人资料库（含个人简历等 PII，公开仓库排除） ==========
+资料库/
