@@ -1,0 +1,20 @@
+# ============================================================
+# BOSS 直聘自动化助手 - GPU 推理依赖 (requirements-gpu.txt)
+# 适用: 本机 CUDA 12.0 + cuDNN 8.9 (RTX 4070 等)
+# 安装命令: .venv\Scripts\python.exe -m pip install -r requirements-gpu.txt
+# ============================================================
+#
+# ⚠️ 关键: paddlepaddle-gpu==2.6.2.post120 是 cu120 构建版, 仅发布在 Paddle 官方源,
+#    不在 PyPI。PyPI 上的 paddlepaddle-gpu==2.6.2 是 cu118 版, 会要求 cublas64_118.dll,
+#    在本机 CUDA 12.0 上推理直接报错 (error 126)。所以必须用下方 --index-url 官方源。
+#    (详见 GPU_SETUP_GUIDE.md)
+#
+# 先装好 requirements.txt, 再装本文件:
+#   .venv\Scripts\python.exe -m pip install -r requirements.txt
+#   .venv\Scripts\python.exe -m pip install -r requirements-gpu.txt
+
+# Paddle 官方 cu120 源 (主源); 传递依赖回退到 PyPI
+--index-url https://www.paddlepaddle.org.cn/packages/stable/cu120/
+--extra-index-url https://pypi.org/simple
+
+paddlepaddle-gpu==2.6.2.post120

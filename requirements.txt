@@ -1,18 +1,30 @@
 # ============================================================
 # BOSS 直聘自动化助手 - 依赖清单 (requirements.txt)
-# 适用运行环境: Python 3.10.11 (F:\BOSS_auto\.venv, Windows)
-# 安装命令:     F:\BOSS_auto\.venv\Scripts\python.exe -m pip install -r requirements.txt
-# 说明: 版本号取自实际运行环境 F:\BOSS_auto\.venv 的 pip freeze;
-#       其中 pyperclip 在该环境实测未安装, 已标注需补装。
+# 运行环境: Python 3.10.11 (Windows)
+# 安装命令: .venv\Scripts\python.exe -m pip install -r requirements.txt
 # ============================================================
+#
+# ⚠️ 重要说明（与本项目强相关，务必先读）:
+# 1) airtest 要求 opencv<=4.6.0.66 且 numpy<2.0，故 opencv / numpy 已锁定版本，
+#    不要随意升级，否则 airtest 会 import 失败。
+# 2) paddleocr 会顺带尝试安装 opencv-python / opencv-python-headless，与上方的
+#    opencv-contrib-python==4.6.0.66 冲突（两者都提供 cv2）。安装完成后请按
+#    GPU_SETUP_GUIDE.md 执行冲突清理:
+#       pip uninstall -y opencv-python opencv-python-headless
+#       pip install --force-reinstall --no-deps opencv-contrib-python==4.6.0.66
+# 3) GPU 推理用的 paddlepaddle-gpu==2.6.2.post120 (cu120 构建) 不在 PyPI，
+#    必须用 Paddle 官方源单独安装，见 requirements-gpu.txt，不要写进本文件。
+# 4) 本文件只列「代码直接 import 的依赖 + 需锁版本的交付依赖」，不冻结整个
+#    传递依赖树（paddleocr/dashscope 会拉入大量 ML 栈包，交给 pip 解析即可）。
 
 # ---------- 核心第三方依赖 (代码直接 import) ----------
 airtest==1.4.3
-opencv-contrib-python==4.6.0.66      # 代码 import cv2
+opencv-contrib-python==4.6.0.66      # 代码 import cv2 (锁定版本以满足 airtest)
+paddleocr==2.7.3                      # local_ocr_engine.py: PaddleOCR 本地 OCR 引擎 (2.x API, 勿升 3.x)
 requests==2.34.2
-dashscope==1.26.2                    # 阿里云百炼/MaaS: 多模态 OCR 与 RAG 调用
-nltk==3.9.4                          # load_key.py 顶层 import
-pyperclip>=1.8.2                     # device.py: 剪贴板复制文本到设备 (当前运行环境缺失, 需补装)
+dashscope==1.26.2                     # 阿里云百炼/MaaS: 多模态 OCR 与 RAG 调用
+nltk==3.9.4                           # load_key.py 顶层 import
+pyperclip==1.11.0                     # device.py: 剪贴板复制文本到设备
 
 # ---------- airtest 传递依赖 (锁定实际环境版本, 确保可复现) ----------
 numpy==1.26.4
@@ -23,4 +35,4 @@ websocket-client==1.9.0
 # ---------- 已剔除的死依赖 ----------
 # future==1.0.0  # 仅 job_browser.py 一处误写 import ("from future.backports.email.mime import message")
 #                且 message 全程未使用, 已从代码删除 (job_browser.py:8), 切勿安装。
-#                注意: 若 F:\BOSS_auto 运行副本仍保留该 import 行, 需同步删除, 否则按本清单安装后会报 ModuleNotFoundError: future。
+#                注意: 若运行副本仍保留该 import 行, 需同步删除, 否则按本清单安装后会报 ModuleNotFoundError: future。
