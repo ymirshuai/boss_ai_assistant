@@ -31,12 +31,14 @@ class FakeCtx:
         self.prompt_calls = []
         self.saved_items = None
 
-    def search_jobs(self, keyword=""):
-        self.search_calls.append(keyword)
-        return "ok"
+    def search_jobs(self, keyword="", greet=False):
+        self.search_calls.append((keyword, greet))
+        return {"ok": True, "browsed": 0, "greeted": 0,
+                "stopped_by_user": False, "error": None}
 
-    def browse_jobs(self):
-        return self.browse_count
+    def browse_jobs(self, greet=False):
+        return {"browsed": self.browse_count, "greeted": 0,
+                "stopped_by_user": False, "error": None}
 
     def view_messages(self):
         return self.view_result
@@ -61,7 +63,7 @@ def test_search_jobs_tool_orchestrates_ctx():
     tool = search_jobs(ctx)
     out = tool.call('{"keyword": "AI 应用开发"}')
     assert "搜索岗位已完成" in out
-    assert ctx.search_calls == ["AI 应用开发"]
+    assert ctx.search_calls == [("AI 应用开发", False)]
 
 
 def test_search_jobs_tool_empty_keyword():
@@ -69,7 +71,7 @@ def test_search_jobs_tool_empty_keyword():
     tool = search_jobs(ctx)
     out = tool.call("{}")
     assert "搜索岗位已完成" in out
-    assert ctx.search_calls == [""]
+    assert ctx.search_calls == [("", False)]
 
 
 def test_browse_jobs_tool_orchestrates_ctx():
@@ -77,7 +79,7 @@ def test_browse_jobs_tool_orchestrates_ctx():
     tool = browse_jobs(ctx)
     out = tool.call("")
     assert "浏览岗位完成" in out
-    assert "2 个岗位" in out
+    assert "本次浏览 2 个" in out
 
 
 def test_view_messages_tool_orchestrates_ctx():
