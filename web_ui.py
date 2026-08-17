@@ -67,6 +67,8 @@ def campaign_status():
             "today_greet_count": 0,
             "latest_screenshot": None,
             "session_id": None,
+            "this_run": {"browsed": 0, "greeted": 0, "replied": 0},
+            "today": {"browsed": 0, "greeted": 0, "replied": 0},
         })
     return jsonify(a.status())
 
@@ -87,6 +89,7 @@ def start_campaign():
     keyword = data.get("keyword") or None
     target = data.get("target_greet_count")
     duration = data.get("duration")
+    search_enabled = data.get("search_enabled", True)
 
     with _current["lock"]:
         if _current["assistant"] and _current["assistant"].running:
@@ -98,7 +101,8 @@ def start_campaign():
             a = main.BOSSAssistant()
             with _current["lock"]:
                 _current["assistant"] = a
-            a.run_campaign(keyword=keyword, target_greet_count=target, duration=duration)
+            a.run_campaign(keyword=keyword, target_greet_count=target,
+                           duration=duration, search_enabled=search_enabled)
         except Exception as e:
             log_broadcast.broadcast({
                 "ts": _now(), "level": "ERROR",
@@ -117,12 +121,15 @@ def start_campaign():
 
 @app.route("/api/campaign/stop", methods=["POST"])
 def stop_campaign():
+    # 统一急停：同时停止 campaign 与 Agent 会话（安全模型：用户永远握着急停）
+    from agent_session import session
+
     with _current["lock"]:
         a = _current["assistant"]
     if a:
         a.stop()
-        return jsonify({"ok": True, "msg": "已发送停止信号"})
-    return jsonify({"ok": True, "msg": "当前无运行中的 campaign"})
+    session.stop()
+    return jsonify({"ok": True, "msg": "已发送停止信号（含 Agent 会话）"})
 
 
 @app.route("/api/logs/stream")
@@ -158,15 +165,84 @@ def notes():
 
 @app.route("/api/agent/chat", methods=["POST"])
 def agent_chat():
-    """预留：与 Agent 对话的接口，尚未接入实际 Agent 逻辑。"""
+    """与 Agent 对话：受理一条用户消息，后台执行，立即返回受理结果。
+
+    真正的流式回传走 SSE（/api/agent/stream）：assistant_delta / tool_call /
+    tool_result / done / error / stopped / reset 等事件。
+    """
+    from agent_session import session
+
     data = request.get_json(silent=True) or {}
-    msg = data.get("message", "")
-    return jsonify({
-        "ok": True,
-        "reply": "（Agent 对话模块开发中，暂未接入。此消息框已预留，后续可让助手查看简历、"
-                 "搜索岗位、统计共性并给出方向建议，或唤起循环模式批量打招呼。）",
-        "echo": msg,
-    })
+    msg = (data.get("message") or "").strip()
+    if not msg:
+        return jsonify({"ok": False, "accepted": False, "msg": "消息不能为空"}), 400
+    ok, text = session.send(msg)
+    return jsonify({"ok": bool(ok), "accepted": bool(ok), "msg": text})
+
+
+@app.route("/api/agent/stream")
+def agent_stream():
+    """Agent 对话事件流（SSE），订阅 log_broadcast.agent 通道。"""
+    q = log_broadcast.agent.subscribe()
+
+    def gen():
+        yield "retry: 3000\n\n"
+        for entry in log_broadcast.agent.drain_buffer():
+            yield f"data: {json.dumps(entry, ensure_ascii=False)}\n\n"
+        try:
+            while True:
+                try:
+                    entry = q.get(timeout=30)
+                except Exception:
+                    yield ": ping\n\n"
+                    continue
+                yield f"data: {json.dumps(entry, ensure_ascii=False)}\n\n"
+        finally:
+            log_broadcast.agent.unsubscribe(q)
+
+    return Response(gen(), mimetype="text/event-stream")
+
+
+@app.route("/api/agent/goals")
+def agent_goals():
+    """目标面板数据：G1–G5 进度（真实数据源，无数据降级为 0）。"""
+    from agent_session import session
+
+    return jsonify(session.goals())
+
+
+@app.route("/api/agent/status")
+def agent_status():
+    """Agent 会话状态（busy / stop_requested / 初始化 / 触屏就绪 / 工具计数）。"""
+    from agent_session import session
+
+    return jsonify(session.status())
+
+
+@app.route("/api/agent/history")
+def agent_history():
+    """当前会话的可读记录（供前端刷新恢复）。"""
+    from agent_session import session
+
+    return jsonify({"history": session.history()})
+
+
+@app.route("/api/agent/stop", methods=["POST"])
+def agent_stop():
+    """仅停止 Agent 会话（强制停止信号）。"""
+    from agent_session import session
+
+    session.stop()
+    return jsonify({"ok": True, "msg": "已发送 Agent 强制停止信号"})
+
+
+@app.route("/api/agent/reset", methods=["POST"])
+def agent_reset():
+    """清空 Agent 对话历史与事件缓冲。"""
+    from agent_session import session
+
+    session.reset()
+    return jsonify({"ok": True, "msg": "Agent 对话已清空"})
 
 
 def run_ui(host="0.0.0.0", port=5000):

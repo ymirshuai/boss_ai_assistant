@@ -14,7 +14,7 @@ RESUME_MD = """# 罗帅
 
 ## 求职意向
 AI 应用开发工程师 / 大模型应用开发工程师 / Agent 开发工程师
-期望薪资：15-30K ｜ 期望城市：深圳
+期望薪资：18K以上 ｜ 期望城市：深圳
 
 ## 专业技能
 熟练使用 OpenAI / Claude / 通义千问等主流大模型 API
@@ -45,7 +45,7 @@ def test_retrieve_recalls_salary_expectation():
         snips = kb.retrieve("求职期望 薪资 城市", top_k=2)
         assert snips, "应召回至少一个片段"
         joined = "\n".join(snips)
-        assert "15-30K" in joined
+        assert "18K以上" in joined
         assert "深圳" in joined
 
 
@@ -63,7 +63,7 @@ def test_context_formatting():
         ctx = kb.context("求职期望 薪资", top_k=2)
         assert "[资料片段 1]" in ctx
         # 含简历片段内容
-        assert "15-30K" in ctx
+        assert "18K以上" in ctx
 
 
 def test_empty_directory_no_crash():
@@ -78,5 +78,5 @@ def test_real_knowledge_base_recalls_resume():
     kb = get_knowledge_base()
     snips = kb.retrieve("求职期望 期望薪资 期望城市", top_k=3)
     joined = "\n".join(snips)
-    assert "15-30K" in joined, "真实 资料库/ 应召回简历中的期望薪资"
+    assert "18K以上" in joined, "真实 资料库/ 应召回简历中的期望薪资（以简历为准）"
     assert "深圳" in joined

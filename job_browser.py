@@ -21,16 +21,25 @@ class JobBrowser:
         self.last_greet_time = 0
         self.greet_count_this_hour = 0
         self.hour_start = time.time()
-    
-    def browse(self):
+        # 拉黑公司集合：browse 时命中则跳过打招呼（由 ctx 在浏览前 set 进来）
+        self.blocklist = set()
+
+    def set_blocklist(self, items):
+        """设置拉黑公司集合（公司名精确匹配）。"""
+        self.blocklist = set(items or [])
+
+    def browse(self, greet=True):
         """浏览岗位
-        
+
+        Args:
+            greet: True 时匹配岗位自动打招呼；False 时只浏览/保存岗位信息不招呼
+                   （agent 工具「是否打招呼」开关 = False 的路径）。
         Returns:
-            int: "发送打招呼的次数"
+            dict: {"browsed": 浏览岗位数, "greeted": 发送打招呼次数}
         """
 
         # 计数
-        count = 0
+        greeted = 0
         # 2. 识别岗位信息
         # 自带截图
         job_infos = self.ocr.extract_job_info()
@@ -61,6 +70,21 @@ class JobBrowser:
                 time.sleep(2)
                 continue
 
+            # 命中拉黑公司：跳过打招呼（agent blocklist 生效点）
+            company = job_info_all.get("company", "")
+            if company and company in self.blocklist:
+                self.logger.update_stats("skip_count")
+                self.logger.log(f"跳过拉黑公司岗位：{company}", "WARNING")
+                swipe((930, 1238), (216, 1238))
+                time.sleep(2)
+                continue
+
+            # 只浏览不招呼：左滑看下一个
+            if not greet:
+                swipe((930, 1238), (216, 1238))
+                time.sleep(2)
+                continue
+
             #符合，发送打招呼
             # 7. 检查冷却时间和频率限制
             # 检查打招呼间隔
@@ -85,13 +109,13 @@ class JobBrowser:
             time.sleep(2)
             # 9. 更新状态
             self.last_greet_time = time.time()
-            count += 1
+            greeted += 1
             # 左滑下一个
             if i ==0:
                 swipe((930, 1238), (216, 1238))
         keyevent("BACK")  # 返回
         time.sleep(1)
-        return count
+        return {"browsed": len(job_infos), "greeted": greeted}
 
     def search(self, keyword=""):
         """发起岗位搜索（设备 UI 动作）。

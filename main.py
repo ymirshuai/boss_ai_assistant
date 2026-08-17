@@ -62,10 +62,14 @@ class BOSSAssistant:
         self.hour_start = time.time()
         self.greet_count_this_hour = 0
 
+        # 本轮 campaign 的累计计数（本次 vs 今日，供 Web UI 实时进度展示）
+        self.this_run = {"browsed": 0, "greeted": 0, "replied": 0}
+
         # campaign 运行时状态（供 Web UI / 未来 Agent 读取）
         self.campaign_keyword = search_job
         self.campaign_target = BEHAVIOR_CONFIG["greet_per_day"]
         self.campaign_deadline = None
+        self.search_enabled = True
         self.campaign_status = "空闲"
         self.latest_screenshot_path = None
     
@@ -78,7 +82,8 @@ class BOSSAssistant:
         # 自动模式沿用 config 默认参数
         self.run_campaign()
 
-    def run_campaign(self, keyword=None, target_greet_count=None, duration=None):
+    def run_campaign(self, keyword=None, target_greet_count=None,
+                     duration=None, search_enabled=True):
         """可独立调用的 campaign 主循环。
 
         被自动模式、Web UI「开始自动打招呼」按钮、以及未来的 Agent 工具复用。
@@ -88,14 +93,19 @@ class BOSSAssistant:
             keyword: 搜索岗位关键词；为空用 config.search_job。
             target_greet_count: 目标打招呼数（达到即暂停本轮）；为空用 BEHAVIOR_CONFIG["greet_per_day"]。
             duration: 最长运行秒数；为空则一直运行直到手动停止或达每日上限。
+            search_enabled: 是否执行「搜索指定岗位」。为 False 时跳过搜索，
+                直接浏览 BOSS 主页推荐的岗位（避免空关键词误触）。
         """
         _ensure_airtest_setup()
         setup_logging(self.logger.session_id)
         self.running = True
         self.error_time = 0
+        # 新一轮 campaign：清空「本次」计数（今日计数来自 logger 累计，不在此重置）
+        self.this_run = {"browsed": 0, "greeted": 0, "replied": 0}
         self.campaign_keyword = keyword or search_job
         self.campaign_target = target_greet_count or BEHAVIOR_CONFIG["greet_per_day"]
         self.campaign_deadline = (time.time() + float(duration)) if duration else None
+        self.search_enabled = search_enabled
         self.search_job = self.campaign_keyword
         self.campaign_status = f"运行中（岗位：{self.campaign_keyword}｜目标：{self.campaign_target}）"
         self.logger.log(
@@ -150,6 +160,9 @@ class BOSSAssistant:
                         swipe((600, 550), (600, 2066), duration=2.0)
                     #检测当前界面的红点
                     while True:
+                        if not self.running:
+                            self.logger.log("收到停止信号，结束消息回复", "INFO")
+                            break
                         ccc=0
                         for i in range(0,2):#下滑3次查找新消息
 
@@ -171,6 +184,7 @@ class BOSSAssistant:
 
                                 if result == "success":
                                     self.logger.log("回复成功", "SUCCESS")
+                                    self.this_run["replied"] += 1
                             #没有新消息退出循环
                             else:
                                 #上划
@@ -183,16 +197,19 @@ class BOSSAssistant:
                 else:
                     #没有新消息就浏览岗位
                     self.logger.log("没有新消息...", "INFO")
-                    #搜索岗位，为空时浏览主页岗位
-                    self.search_job_or_not(self.campaign_keyword)
+                    #搜索岗位，未勾选或关键词为空时浏览主页岗位
+                    self.search_job_or_not(self.campaign_keyword, enabled=self.search_enabled)
                     count = 0
                     while True:
+                        if not self.running:
+                            self.logger.log("收到停止信号，结束岗位浏览", "INFO")
+                            break
                         #达到当日最大打招呼，返回检查新消息
                         today_greets = get_today_greet_count()
                         self.logger.log("今天已打招呼："+str(today_greets), "INFO")
                         # 达到目标数或每日硬上限，返回检查新消息
                         if today_greets >= self.campaign_target or today_greets >= BEHAVIOR_CONFIG["greet_per_day"]:
-                            time.sleep(600)#直接等10分钟吧
+                            self._sleep_interruptible(600, "已到目标/每日上限，暂停本轮")
                             break
                         now = time.time()
                         # 检查每小时打招呼限制
@@ -202,16 +219,20 @@ class BOSSAssistant:
                         # 大于跳出，检测新消息
                         if self.greet_count_this_hour >= BEHAVIOR_CONFIG["max_greet_per_hour"]:
                             self.logger.log("超出一小时打招呼数，返回检查新消息...", "INFO")
-                            time.sleep(600)#直接等10分钟吧
+                            self._sleep_interruptible(600, "超出每小时打招呼上限，暂停本轮")
                             break
                         # 5. 浏览岗位,浏览两个岗位
 
                         self.logger.log("开始浏览岗位...", "INFO")
                         #先上划，不看前两个
                         swipe((600, 2066), (600, 550), duration=2.0)
-                        count_one = self.job_browser.browse()
-                        count +=count_one
+                        browse_res = self.job_browser.browse(greet=True)
+                        count_one = browse_res["greeted"]
+                        count += count_one
                         self.greet_count_this_hour = count_one + self.greet_count_this_hour
+                        # 累计「本次」浏览/打招呼计数（供 Web UI 实时进度）
+                        self.this_run["browsed"] += browse_res.get("browsed", 0)
+                        self.this_run["greeted"] += count_one
                         time.sleep(1)
                         #打招呼后跳出，检查新消息
                         if count>0:
@@ -221,10 +242,15 @@ class BOSSAssistant:
                     handle_common_exception()
                 # 6. 打印统计
                 self.logger.print_stats()
-                
-                # 7. 等待一段时间
+
+                # 7. 等待一段时间（可中断：停止信号会提前结束等待）
+                if not self.running:
+                    self.logger.log("收到停止信号，退出主循环", "INFO")
+                    break
                 self.logger.log(f"等待 {BEHAVIOR_CONFIG['loop_interval']} 秒...", "INFO")
-                time.sleep(BEHAVIOR_CONFIG["loop_interval"])
+                if not self._sleep_interruptible(BEHAVIOR_CONFIG["loop_interval"]):
+                    self.logger.log("收到停止信号，退出主循环", "INFO")
+                    break
         
             except KeyboardInterrupt:
                 self.logger.log("用户中断，退出...", "WARNING")
@@ -256,14 +282,24 @@ class BOSSAssistant:
                 # 10. 返回主页
                 handle_common_exception()
 
-    def search_job_or_not(self,job=None):
+    def search_job_or_not(self, job=None, enabled=True):
+        """是否搜索指定岗位。
+
+        Args:
+            job: 搜索关键词；为空时用主页推荐。
+            enabled: 是否执行搜索。为 False 时直接返回（浏览主页岗位），
+                避免空关键词误触搜索框。
+        """
+        if not enabled:
+            self.logger.log("未勾选搜索岗位，直接浏览 BOSS 主页推荐岗位", "INFO")
+            return
+        # 聚焦搜索框
         touch(Template(r"png/tpl1783585382020.png", record_pos=(-0.377, 1.006), resolution=(1080, 2400)))
         time.sleep(1)
         if job is None or job == "":
-
+            self.logger.log("已勾选搜索但未填写岗位名，改为浏览主页推荐岗位", "WARNING")
             return
         else:
-
             count = 0
             # 进入搜索
             touch(Template(r"png/tpl1783583458648.png", threshold=0.9, record_pos=(0.42, -0.964),
@@ -296,6 +332,29 @@ class BOSSAssistant:
         self.logger.print_stats()
         self.logger.save_stats()
 
+    def _sleep_interruptible(self, seconds, label=None):
+        """可被 stop() 中断的睡眠。
+
+        把整段睡眠拆成 0.5s 的小块，期间一旦 self.running 被置 False 就立刻返回 False，
+        让主循环能及时响应停止信号，而不是卡在 time.sleep 里。
+
+        Returns:
+            True 表示正常睡满；False 表示被停止信号提前打断。
+        """
+        if seconds <= 0:
+            return self.running
+        chunk = 0.5
+        slept = 0.0
+        if label:
+            self.logger.log(f"{label}（约 {int(seconds)} 秒，可随时停止）", "INFO")
+        while slept < seconds:
+            if not self.running:
+                return False
+            remain = min(chunk, seconds - slept)
+            time.sleep(remain)
+            slept += remain
+        return self.running
+
     def _capture_latest_screenshot(self):
         """把当前屏幕保存到 screenshots/latest.png，供 Web UI 实时展示。
 
@@ -321,10 +380,18 @@ class BOSSAssistant:
             "running": self.running,
             "keyword": getattr(self, "campaign_keyword", search_job),
             "target": getattr(self, "campaign_target", BEHAVIOR_CONFIG["greet_per_day"]),
+            "search_enabled": getattr(self, "search_enabled", True),
             "today_greet_count": today,
             "latest_screenshot": self.latest_screenshot_path,
             "status": getattr(self, "campaign_status", "空闲"),
             "session_id": self.logger.session_id[:8],
+            # 实时进度：本次 campaign 累计 vs 今日累计（计数逻辑同样适用于 Agent 工具）
+            "this_run": dict(self.this_run),
+            "today": {
+                "browsed": self.logger.stats.get("browse_count", 0),
+                "greeted": today,
+                "replied": self.logger.stats.get("reply_count", 0),
+            },
         }
 
 

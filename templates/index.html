@@ -45,13 +45,43 @@
   .lv-WARNING { color: #f6c453; }
   .lv-ERROR { color: #ff8a8a; }
   .stat { font-size: 13px; color: #475069; margin-top: 8px; }
+  .progress-line { font-size: 13px; color: #1f2533; margin-top: 6px; font-weight: 600; }
+  .progress-line b { color: #2f7bff; }
+  .progress-line .today { color: #1a9c5b; }
   /* Agent chat */
-  #chatLog { height: 180px; overflow-y: auto; border: 1px solid #e3e8ef; border-radius: 8px; padding: 10px; background: #fafbfc; font-size: 13px; }
-  .msg { margin: 6px 0; padding: 6px 10px; border-radius: 8px; max-width: 85%; }
+  #chatLog { height: 360px; overflow-y: auto; border: 1px solid #e3e8ef; border-radius: 8px; padding: 10px; background: #fafbfc; font-size: 13px; }
+  .msg { margin: 6px 0; padding: 6px 10px; border-radius: 8px; max-width: 90%; white-space: pre-wrap; word-break: break-word; line-height: 1.55; }
   .msg.me { background: #e7f0ff; margin-left: auto; text-align: right; }
   .msg.bot { background: #fff; border: 1px solid #e3e8ef; }
+  .msg.sys { background: transparent; color: #6b7280; font-size: 12px; text-align: center; margin: 4px auto; }
+  .msg.tool { background: #fff7e6; border: 1px solid #ffe1a8; font-size: 12.5px; }
+  .msg.tool .tool-name { font-weight: 700; color: #b9770e; }
+  .msg.tool .tool-args { color: #8a6d3b; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; margin-top: 2px; word-break: break-all; }
+  .msg.tool-result { background: #eef7ee; border: 1px solid #bfe3bf; font-size: 12.5px; }
+  .msg.tool-result .tr-name { font-weight: 700; color: #1a9c5b; }
+  .msg.tool-result .tr-text { color: #3f6b45; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; margin-top: 2px; word-break: break-all; }
   .chat-input { display: flex; gap: 8px; margin-top: 8px; }
   .chat-input input { flex: 1; padding: 8px 10px; border: 1px solid #d4dae3; border-radius: 8px; font-size: 14px; }
+  .chat-controls { display: flex; gap: 8px; margin-top: 8px; }
+  .thinking { display: inline-block; }
+  .thinking span { display: inline-block; animation: blink 1.2s infinite both; }
+  .thinking span:nth-child(2){ animation-delay: .2s; }
+  .thinking span:nth-child(3){ animation-delay: .4s; }
+  @keyframes blink { 0%,80%,100%{ opacity:.2 } 40%{ opacity:1 } }
+  /* goals */
+  .goals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .goal { border: 1px solid #e3e8ef; border-radius: 10px; padding: 12px; background: #fbfcfe; }
+  .goal h3 { margin: 0 0 4px; font-size: 14px; }
+  .goal .gdesc { font-size: 12px; color: #6b7280; margin-bottom: 8px; min-height: 32px; }
+  .goal .metrics { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 8px; }
+  .goal .metric { font-size: 12px; color: #475069; }
+  .goal .metric b { color: #1f2533; font-size: 13px; }
+  .goal .gstate { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .gstate.进行中 { background: #fff4e0; color: #b9770e; }
+  .gstate.已达成 { background: #e7f7ee; color: #1a9c5b; }
+  .gstate.未开始 { background: #eef1f5; color: #6b7280; }
+  .bar { height: 6px; border-radius: 999px; background: #eef1f5; overflow: hidden; margin: 6px 0; }
+  .bar > i { display: block; height: 100%; background: #2f7bff; }
   /* modal */
   .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; }
   .modal-mask.show { display: flex; }
@@ -64,7 +94,7 @@
 <header>
   <h1>BOSS 直聘 AI 助手</h1>
   <span id="statusBadge" class="badge idle">空闲</span>
-  <button id="stopBtn" class="btn-danger" disabled>停止</button>
+  <button id="stopBtn" class="btn-danger" disabled>停止（含 Agent）</button>
 </header>
 
 <div class="wrap">
@@ -84,12 +114,22 @@
         <label>运行时长（秒，留空=不限）</label>
         <input id="duration" type="number" placeholder="留空不限" min="1">
       </div>
+      <div class="field" style="justify-content:flex-end;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#1f2533;">
+          <input id="searchEnabled" type="checkbox" checked>
+          搜索指定岗位（取消则仅浏览主页推荐岗位）
+        </label>
+      </div>
       <div class="row-btns">
         <button id="notesBtn" class="btn-ghost">注意事项</button>
         <button id="startBtn" class="btn-primary">开始自动打招呼 / 回消息</button>
       </div>
     </div>
     <div id="statLine" class="stat">今日已打招呼：— ｜ 当前岗位：— ｜ 会话：—</div>
+    <div id="progressLine" class="progress-line">
+      本次 浏览<b>0</b>/招呼<b>0</b>/回复<b>0</b>
+      ｜ 今日 浏览<span class="today">0</span>/招呼<span class="today">0</span>/回复<span class="today">0</span>
+    </div>
   </div>
 
   <!-- 主区 -->
@@ -104,14 +144,25 @@
     </div>
   </div>
 
-  <!-- Agent 对话（预留） -->
+  <!-- Agent 对话 -->
   <div class="card">
-    <h2>与 Agent 对话（预留）</h2>
+    <h2>与 Agent 对话（流式）</h2>
     <div id="chatLog"></div>
     <div class="chat-input">
-      <input id="chatInput" type="text" placeholder="（Agent 模块开发中）试着说点什么…">
-      <button id="chatSend" class="btn-primary">发送</button>
+      <input id="chatInput" type="text" placeholder="让助手查看简历、搜索/浏览岗位、统计共性、唤起循环…">
+      <button id="chatSend" class="btn-primary" disabled>发送</button>
     </div>
+    <div class="chat-controls">
+      <button id="agentStopBtn" class="btn-danger" disabled>停止 Agent</button>
+      <button id="agentResetBtn" class="btn-ghost">清空对话</button>
+      <span id="agentState" class="stat" style="margin:auto 0 auto 8px;"></span>
+    </div>
+  </div>
+
+  <!-- 目标面板 -->
+  <div class="card">
+    <h2>目标进度（G1–G5）</h2>
+    <div id="goalsGrid" class="goals-grid"><span class="stat">加载中…</span></div>
   </div>
 </div>
 
@@ -140,19 +191,16 @@ function addLog(e) {
 
 // SSE 实时日志
 const es = new EventSource("/api/logs/stream");
-es.onmessage = ev => {
-  try { addLog(JSON.parse(ev.data)); } catch (_) {}
-};
-es.onerror = () => {}; // 自动重连
+es.onmessage = ev => { try { addLog(JSON.parse(ev.data)); } catch (_) {} };
+es.onerror = () => {};
 
 // 截图轮询
-function refreshScreenshot() {
-  $("screenshot").src = "/api/screenshot?t=" + Date.now();
-}
+function refreshScreenshot() { $("screenshot").src = "/api/screenshot?t=" + Date.now(); }
 setInterval(refreshScreenshot, 2000);
 refreshScreenshot();
 
 // 状态轮询
+let agentBusy = false;
 async function refreshStatus() {
   try {
     const r = await fetch("/api/campaign/status");
@@ -160,10 +208,15 @@ async function refreshStatus() {
     const badge = $("statusBadge");
     badge.textContent = s.running ? "运行中" : "空闲";
     badge.className = "badge " + (s.running ? "run" : "idle");
-    $("stopBtn").disabled = !s.running;
-    $("startBtn").disabled = s.running;
+    $("startBtn").disabled = s.running || agentBusy;
+    $("stopBtn").disabled = !(s.running || agentBusy);
     $("statLine").textContent =
-      `今日已打招呼：${s.today_greet_count} ｜ 当前岗位：${s.keyword || "—"} ｜ 目标：${s.target ?? "—"} ｜ 会话：${s.session_id || "—"}`;
+      `今日已打招呼：${s.today_greet_count} ｜ 当前岗位：${s.keyword || "—"} ｜ 目标：${s.target ?? "—"} ｜ 模式：${s.search_enabled ? "搜索岗位" : "浏览主页"} ｜ 会话：${s.session_id || "—"}`;
+    const tr = s.this_run || {browsed:0, greeted:0, replied:0};
+    const td = s.today || {browsed:0, greeted:0, replied:0};
+    $("progressLine").innerHTML =
+      `本次 浏览<b>${tr.browsed}</b>/招呼<b>${tr.greeted}</b>/回复<b>${tr.replied}</b>` +
+      ` ｜ 今日 浏览<span class="today">${td.browsed}</span>/招呼<span class="today">${td.greeted}</span>/回复<span class="today">${td.replied}</span>`;
   } catch (_) {}
 }
 setInterval(refreshStatus, 2000);
@@ -171,10 +224,17 @@ refreshStatus();
 
 // 开始
 $("startBtn").onclick = async () => {
+  const keyword = $("keyword").value.trim();
+  const searchEnabled = $("searchEnabled").checked;
+  if (searchEnabled && !keyword) {
+    const ok = confirm("已勾选「搜索指定岗位」但未填写岗位名称，将改为浏览 BOSS 主页推荐岗位。\n\n确定继续？");
+    if (!ok) return;
+  }
   const body = {
-    keyword: $("keyword").value.trim(),
+    keyword: keyword || null,
     target_greet_count: $("target").value ? Number($("target").value) : null,
     duration: $("duration").value ? Number($("duration").value) : null,
+    search_enabled: searchEnabled,
   };
   const r = await fetch("/api/campaign/start", {
     method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)
@@ -184,10 +244,11 @@ $("startBtn").onclick = async () => {
   refreshStatus();
 };
 
-// 停止
+// 统一急停（停止 campaign + Agent）
 $("stopBtn").onclick = async () => {
   await fetch("/api/campaign/stop", { method: "POST" });
   refreshStatus();
+  refreshAgentStatus();
 };
 
 // 注意事项
@@ -197,25 +258,164 @@ $("notesBtn").onclick = async () => {
   $("notesModal").classList.add("show");
 };
 
-// Agent 对话（预留）
-function addChat(who, text) {
+// ---------------- Agent 流式对话 ----------------
+const chatEl = $("chatLog");
+let curAssistant = null;   // 当前正在累积的助手气泡
+let thinkingEl = null;     // 思考中指示器
+
+function scrollChat() { chatEl.scrollTop = chatEl.scrollHeight; }
+
+function appendMsg(cls, html) {
   const d = document.createElement("div");
-  d.className = "msg " + who;
-  d.textContent = text;
-  $("chatLog").appendChild(d);
-  $("chatLog").scrollTop = $("chatLog").scrollHeight;
+  d.className = "msg " + cls;
+  d.innerHTML = html;
+  chatEl.appendChild(d);
+  scrollChat();
+  return d;
 }
+
+function showThinking() {
+  if (thinkingEl) return;
+  thinkingEl = appendMsg("sys",
+    '<span class="thinking">思考中<span>.</span><span>.</span><span>.</span></span>');
+}
+function hideThinking() {
+  if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; }
+}
+
+function appendAssistant(text) {
+  hideThinking();
+  if (!curAssistant) curAssistant = appendMsg("bot", "");
+  curAssistant.textContent += text;
+  scrollChat();
+}
+function finalizeAssistant() { curAssistant = null; }
+
+function addToolCall(name, args) {
+  finalizeAssistant(); hideThinking();
+  const argHtml = args ? `<div class="tool-args">参数：${escapeHtml(args)}</div>` : "";
+  appendMsg("tool", `<div class="tool-name">🔧 调用工具：${escapeHtml(name)}</div>${argHtml}`);
+}
+function addToolResult(name, text) {
+  finalizeAssistant();
+  const t = (text || "").slice(0, 600);
+  appendMsg("tool-result",
+    `<div class="tr-name">✅ ${escapeHtml(name)} 返回</div>` +
+    `<div class="tr-text">${escapeHtml(t)}</div>`);
+}
+function addSystem(text) {
+  finalizeAssistant(); hideThinking();
+  appendMsg("sys", escapeHtml(text));
+}
+
+function escapeHtml(s) {
+  return (s || "").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+}
+
+function setBusy(busy) {
+  agentBusy = busy;
+  $("chatSend").disabled = busy;
+  $("agentStopBtn").disabled = !busy;
+}
+
+// 发送
 $("chatSend").onclick = async () => {
   const v = $("chatInput").value.trim();
-  if (!v) return;
-  addChat("me", v);
+  if (!v || agentBusy) return;
+  appendMsg("me", escapeHtml(v));
   $("chatInput").value = "";
-  const r = await fetch("/api/agent/chat", {
-    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({message: v})
-  });
-  const j = await r.json();
-  addChat("bot", j.reply || "（无回复）");
+  showThinking();
+  setBusy(true);
+  try {
+    const r = await fetch("/api/agent/chat", {
+      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({message: v})
+    });
+    const j = await r.json();
+    if (!j.accepted) { addSystem("⚠️ " + (j.msg || "受理失败")); setBusy(false); }
+  } catch (e) {
+    addSystem("⚠️ 发送失败：" + e);
+    setBusy(false);
+  }
 };
+$("chatInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); $("chatSend").click(); }
+});
+
+// 停止 Agent（仅会话）
+$("agentStopBtn").onclick = async () => {
+  await fetch("/api/agent/stop", { method: "POST" });
+  addSystem("🛑 已发送 Agent 强制停止信号");
+};
+
+// 清空对话
+$("agentResetBtn").onclick = async () => {
+  await fetch("/api/agent/reset", { method: "POST" });
+};
+
+// Agent 事件流
+const aES = new EventSource("/api/agent/stream");
+aES.onmessage = ev => {
+  let e; try { e = JSON.parse(ev.data); } catch (_) { return; }
+  switch (e.type) {
+    case "user": break; // 发送时已乐观渲染
+    case "assistant_delta": appendAssistant(e.text); break;
+    case "tool_call": addToolCall(e.name, e.arguments); break;
+    case "tool_result": addToolResult(e.name, e.text); break;
+    case "done": finalizeAssistant(); hideThinking(); setBusy(false);
+      if (e.text) addSystem("— 本轮结束 —"); break;
+    case "error": addSystem("⚠️ " + (e.text || "执行失败")); setBusy(false); break;
+    case "stopped": addSystem("🛑 " + (e.text || "已停止")); setBusy(false); break;
+    case "reset": chatEl.innerHTML = ""; curAssistant = null; hideThinking(); setBusy(false);
+      addSystem(e.text || "对话已清空"); break;
+  }
+};
+aES.onerror = () => {};
+
+// Agent 状态轮询（busy / 初始化 / 触屏就绪 / 工具计数）
+async function refreshAgentStatus() {
+  try {
+    const r = await fetch("/api/agent/status");
+    const s = await r.json();
+    agentBusy = !!s.busy;
+    $("agentStopBtn").disabled = !agentBusy;
+    $("chatSend").disabled = agentBusy;
+    const tu = s.tool_usage || {};
+    const used = Object.entries(tu).map(([k,v]) => `${k}×${v}`).join("，") || "无";
+    $("agentState").textContent =
+      `初始化：${s.initialized ? "是" : "否"} ｜ 触屏就绪：${s.touch_ready ? "是" : "否"} ｜ ` +
+      `本轮工具调用：${used}` + (s.last_error ? ` ｜ 错误：${s.last_error}` : "");
+    $("stopBtn").disabled = !(agentBusy || $("statusBadge").textContent === "运行中");
+    $("startBtn").disabled = agentBusy || $("statusBadge").textContent === "运行中";
+  } catch (_) {}
+}
+setInterval(refreshAgentStatus, 2000);
+refreshAgentStatus();
+
+// ---------------- 目标面板（G1–G5）----------------
+async function refreshGoals() {
+  try {
+    const r = await fetch("/api/agent/goals");
+    const d = await r.json();
+    const grid = $("goalsGrid");
+    grid.innerHTML = "";
+    (d.goals || []).forEach(g => {
+      const metrics = (g.metrics || []).map(m =>
+        `<span class="metric">${escapeHtml(m.label)}：<b>${m.value}</b></span>`).join("");
+      const bar = (g.progress == null) ? "" :
+        `<div class="bar"><i style="width:${Math.min(100, g.progress)}%"></i></div>`;
+      const el = document.createElement("div");
+      el.className = "goal";
+      el.innerHTML =
+        `<h3>${escapeHtml(g.id)} ${escapeHtml(g.name)}</h3>` +
+        `<div class="gdesc">${escapeHtml(g.desc)}</div>` +
+        `<div class="metrics">${metrics}</div>${bar}` +
+        `<span class="gstate ${g.state}">${g.state}</span>`;
+      grid.appendChild(el);
+    });
+  } catch (_) {}
+}
+setInterval(refreshGoals, 3000);
+refreshGoals();
 </script>
 </body>
 </html>
